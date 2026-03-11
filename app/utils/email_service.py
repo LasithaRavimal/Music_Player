@@ -4,7 +4,7 @@ import aiosmtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-from app.config import settings, refresh_email_config
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 # ==============================
 async def send_email(to_email: str, subject: str, body_html: str, body_text: Optional[str] = None) -> bool:
 
-    refresh_email_config()
+   
 
     if not settings.EMAIL_ENABLED:
         logger.info("Email sending disabled")

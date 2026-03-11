@@ -7,7 +7,7 @@ from collections import defaultdict
 from app.db import get_db, USERS_COLLECTION, SONGS_COLLECTION, SESSIONS_COLLECTION, EMAIL_CONFIG_COLLECTION
 from app.auth import require_admin
 from app.models import Message, UserResponse, EmailConfigCreate, EmailConfigUpdate, EmailConfigResponse
-from app.config import refresh_email_config
+
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -180,7 +180,7 @@ async def create_email_config(
 
     result = db[EMAIL_CONFIG_COLLECTION].insert_one(config_doc)
 
-    refresh_email_config()
+   
 
     return EmailConfigResponse(
         smtp_host=config_doc["smtp_host"],
@@ -202,6 +202,6 @@ async def delete_email_config(admin_user: dict = Depends(require_admin)):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Email configuration not found")
 
-    refresh_email_config()
+   
 
     return Message(message="Email configuration deleted")

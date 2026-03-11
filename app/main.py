@@ -12,14 +12,11 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from app.config import (
     settings,
-    API_V1_PREFIX,
-    load_email_config_from_db,
-    initialize_email_config_from_env,
+    API_V1_PREFIX
 )
 
 from app.db import connect_db, close_db
 
-from app.music.session_cleanup import cleanup_inactive_sessions
 
 from app.routes import (
     auth_routes,
