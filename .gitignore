@@ -1,76 +1,102 @@
+# -------------------------
 # Python
+# -------------------------
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+
+# Build
 build/
-develop-eggs/
 dist/
-downloads/
+develop-eggs/
 eggs/
 .eggs/
 lib/
 lib64/
 parts/
 sdist/
-var/
 wheels/
 pip-wheel-metadata/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
 
+# -------------------------
 # Virtual Environment
+# -------------------------
 venv/
 env/
 ENV/
+.venv/
 env.bak/
 venv.bak/
-.venv
 
-# PyCharm
+# -------------------------
+# IDE
+# -------------------------
 .idea/
-
-# VS Code
 .vscode/
 
-# Jupyter Notebook
-.ipynb_checkpoints
+# -------------------------
+# Jupyter
+# -------------------------
+.ipynb_checkpoints/
 
-# Environment variables
+# -------------------------
+# Environment Variables
+# -------------------------
 .env
 .env.local
 .env.*.local
 
-# Media files (uploaded by users)
+# -------------------------
+# Media Files (User Uploads)
+# -------------------------
 media/songs/*
 media/thumbnails/*
 !media/songs/.gitkeep
 !media/thumbnails/.gitkeep
 
+# -------------------------
 # Logs
+# -------------------------
 *.log
 logs/
 
-# Database
+# -------------------------
+# Database Files (local dev)
+# -------------------------
 *.db
 *.sqlite
 *.sqlite3
 
-# OS
+# -------------------------
+# OS Files
+# -------------------------
 .DS_Store
 Thumbs.db
 
-# FastAPI
+# -------------------------
+# FastAPI / Testing
+# -------------------------
 .pytest_cache/
 .coverage
 htmlcov/
 
-# Temporary files
+# -------------------------
+# Temporary / Cache
+# -------------------------
 *.tmp
 *.temp
 .cache/
 
+# -------------------------
+# Model Files (Large ML Models)
+# -------------------------
+app/models/*.pkl
+app/models/*.cbm
+app/models/*.h5
+app/models/*.keras
