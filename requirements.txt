@@ -21,3 +21,4 @@ google-auth-httplib2==0.1.1
 
 apscheduler==3.10.4
 aiosmtplib==3.0.1
+Pillow==10.3.0
