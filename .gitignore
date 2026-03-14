@@ -55,6 +55,9 @@ venv.bak/
 # -------------------------
 # Media Files (User Uploads)
 # -------------------------
+# Media Files
+media/songs/.gitkeep
+media/thumbnails/.gitkeep
 
 
 # -------------------------
