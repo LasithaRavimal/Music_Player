@@ -7,16 +7,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
-
-from app.config import (
-    settings,
-    API_V1_PREFIX
-)
-
+from app.config import settings, API_V1_PREFIX
 from app.db import connect_db, close_db
-
 
 from app.routes import (
     auth_routes,
@@ -44,9 +36,6 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Scheduler
-scheduler = AsyncIOScheduler()
-
 # -------------------------
 # CORS Middleware
 # -------------------------
@@ -65,13 +54,17 @@ app.add_middleware(
 # Static Media
 # -------------------------
 settings.SONGS_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/media/songs", StaticFiles(directory=str(settings.SONGS_DIR)), name="songs")
+app.mount(
+    "/media/songs",
+    StaticFiles(directory=str(settings.SONGS_DIR)),
+    name="songs"
+)
 
 settings.THUMBNAILS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount(
     "/media/thumbnails",
     StaticFiles(directory=str(settings.THUMBNAILS_DIR)),
-    name="thumbnails",
+    name="thumbnails"
 )
 
 # -------------------------
@@ -92,12 +85,8 @@ async def startup_event():
     logger.info("Starting M_Track API...")
 
     try:
-
         connect_db()
         logger.info("Connected to MongoDB")
-
-        initialize_email_config_from_env()
-        load_email_config_from_db()
 
         if settings.EMAIL_ENABLED:
             logger.info("Email configuration loaded")
@@ -105,25 +94,6 @@ async def startup_event():
     except Exception as e:
         logger.error("Startup error: %s", e)
         raise
-
-    # Start session cleanup scheduler
-    try:
-
-        scheduler.add_job(
-            cleanup_inactive_sessions,
-            trigger=IntervalTrigger(minutes=5),
-            id="session_cleanup",
-            name="Auto end inactive listening sessions",
-            replace_existing=True,
-        )
-
-        scheduler.start()
-
-        logger.info("Session cleanup scheduler started")
-
-    except Exception as e:
-
-        logger.warning("Scheduler failed: %s", e)
 
 
 # -------------------------
@@ -135,17 +105,14 @@ async def shutdown_event():
     logger.info("Shutting down M_Track API")
 
     try:
-        if scheduler.running:
-            scheduler.shutdown(wait=False)
-            logger.info("Scheduler stopped")
+        close_db()
+        logger.info("MongoDB connection closed")
     except Exception as e:
-        logger.warning("Scheduler shutdown warning: %s", e)
-
-    close_db()
+        logger.warning("Shutdown warning: %s", e)
 
 
 # -------------------------
-# Root
+# Root Endpoint
 # -------------------------
 @app.get("/")
 async def root():
@@ -172,7 +139,8 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(
-        app,
+        "app.main:app",
         host="0.0.0.0",
-        port=8000
+        port=8000,
+        reload=True
     )
