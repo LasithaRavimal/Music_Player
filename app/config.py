@@ -32,58 +32,122 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(
 )  # 7 days
 
 
-# ==============================
-# PROJECT PATHS
-# ==============================
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+# -----------------------------------
+# BASE PATHS
+# -----------------------------------
+
+BASE_DIR = Path(__file__).parent.parent
 
 MEDIA_DIR = BASE_DIR / "media"
+
 SONGS_DIR = MEDIA_DIR / "songs"
+
 THUMBNAILS_DIR = MEDIA_DIR / "thumbnails"
 
-# Ensure folders exist
 SONGS_DIR.mkdir(parents=True, exist_ok=True)
+
 THUMBNAILS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# ==============================
-# API CONFIGURATION
-# ==============================
+# -----------------------------------
+# API CONFIG
+# -----------------------------------
 
 API_V1_PREFIX = "/api"
 
 
-# ==============================
-# GOOGLE AUTH CONFIG
-# ==============================
+# -----------------------------------
+# GOOGLE OAUTH
+# -----------------------------------
 
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+
 GOOGLE_REDIRECT_URI = os.getenv(
     "GOOGLE_REDIRECT_URI",
     "http://localhost:5173/auth/google/callback"
 )
 
 
-# ==============================
+# -----------------------------------
 # EMAIL CONFIGURATION
-# ==============================
+# -----------------------------------
 
-EMAIL_ENABLED = os.getenv("EMAIL_ENABLED", "false").lower() == "true"
+_EMAIL_ENABLED_DEFAULT = os.getenv("EMAIL_ENABLED", "false").lower() == "true"
 
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+_SMTP_HOST_DEFAULT = os.getenv("SMTP_HOST", "smtp.gmail.com")
 
-SMTP_USER = os.getenv("SMTP_USER")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+_SMTP_PORT_DEFAULT = int(os.getenv("SMTP_PORT", "587"))
 
-SMTP_FROM = SMTP_USER
+_SMTP_USER_DEFAULT = os.getenv("SMTP_USER")
+
+_SMTP_PASSWORD_DEFAULT = os.getenv("SMTP_PASSWORD")
 
 
-# ==============================
+EMAIL_ENABLED = _EMAIL_ENABLED_DEFAULT
+
+SMTP_HOST = _SMTP_HOST_DEFAULT
+
+SMTP_PORT = _SMTP_PORT_DEFAULT
+
+SMTP_USER = _SMTP_USER_DEFAULT
+
+SMTP_PASSWORD = _SMTP_PASSWORD_DEFAULT
+
+SMTP_FROM = _SMTP_USER_DEFAULT
+
+
+def load_email_config_from_db():
+
+    global EMAIL_ENABLED, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
+
+    try:
+
+        from app.db import get_db, EMAIL_CONFIG_COLLECTION
+
+        db = get_db()
+
+        config = db[EMAIL_CONFIG_COLLECTION].find_one(sort=[("updated_at", -1)])
+
+        if config:
+
+            EMAIL_ENABLED = config.get("enabled", _EMAIL_ENABLED_DEFAULT)
+
+            SMTP_HOST = config.get("smtp_host", _SMTP_HOST_DEFAULT)
+
+            SMTP_PORT = config.get("smtp_port", _SMTP_PORT_DEFAULT)
+
+            SMTP_USER = config.get("smtp_user", _SMTP_USER_DEFAULT)
+
+            SMTP_PASSWORD = config.get("smtp_password", _SMTP_PASSWORD_DEFAULT)
+
+            SMTP_FROM = config.get("smtp_from", SMTP_USER or _SMTP_USER_DEFAULT)
+
+    except Exception:
+
+        EMAIL_ENABLED = _EMAIL_ENABLED_DEFAULT
+
+        SMTP_HOST = _SMTP_HOST_DEFAULT
+
+        SMTP_PORT = _SMTP_PORT_DEFAULT
+
+        SMTP_USER = _SMTP_USER_DEFAULT
+
+        SMTP_PASSWORD = _SMTP_PASSWORD_DEFAULT
+
+        SMTP_FROM = _SMTP_USER_DEFAULT
+
+
+def refresh_email_config():
+
+    load_email_config_from_db()
+
+
+# -----------------------------------
 # SETTINGS CLASS
-# ==============================
+# -----------------------------------
 
 class Settings:
 
@@ -120,11 +184,11 @@ class Settings:
         return API_V1_PREFIX
 
     @property
-    def GOOGLE_CLIENT_ID(self) -> Optional[str]:
+    def GOOGLE_CLIENT_ID(self) -> str:
         return GOOGLE_CLIENT_ID
 
     @property
-    def GOOGLE_CLIENT_SECRET(self) -> Optional[str]:
+    def GOOGLE_CLIENT_SECRET(self) -> str:
         return GOOGLE_CLIENT_SECRET
 
     @property

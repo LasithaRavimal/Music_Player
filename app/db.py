@@ -2,15 +2,16 @@ from pymongo import MongoClient
 from pymongo.database import Database
 from app.config import settings
 
+
 client: MongoClient | None = None
 db: Database | None = None
 
 
-# ==============================
+# ==================================
 # CONNECT DATABASE
-# ==============================
+# ==================================
 
-def connect_db():
+def connect_db() -> Database:
     """Initialize MongoDB connection"""
 
     global client, db
@@ -22,9 +23,9 @@ def connect_db():
     return db
 
 
-# ==============================
+# ==================================
 # CLOSE DATABASE
-# ==============================
+# ==================================
 
 def close_db():
     """Close MongoDB connection"""
@@ -35,11 +36,12 @@ def close_db():
         client.close()
 
 
-# ==============================
+# ==================================
 # GET DATABASE INSTANCE
-# ==============================
+# ==================================
 
 def get_db() -> Database:
+    """Return active database connection"""
 
     if db is None:
         return connect_db()
@@ -47,9 +49,9 @@ def get_db() -> Database:
     return db
 
 
-# ==============================
+# ==================================
 # COLLECTION NAMES
-# ==============================
+# ==================================
 
 USERS_COLLECTION = "users"
 
@@ -62,3 +64,7 @@ FAVORITES_COLLECTION = "favorites"
 PLAYLISTS_COLLECTION = "playlists"
 
 EMAIL_CONFIG_COLLECTION = "email_config"
+
+# NEW COLLECTION FOR QUESTIONNAIRE DATA
+
+QUESTIONNAIRE_COLLECTION = "questionnaire_results"

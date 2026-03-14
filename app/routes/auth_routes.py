@@ -15,15 +15,15 @@ from app.config import settings
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-# =========================
+# ----------------------------
 # REGISTER
-# =========================
+# ----------------------------
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserCreate, background_tasks: BackgroundTasks):
-    """Register new user and send welcome email"""
-    
+    """Register a new user and send welcome email"""
     db = get_db()
 
+    # Check if email already exists
     existing_user = db[USERS_COLLECTION].find_one({"email": user_data.email.lower()})
     if existing_user:
         raise HTTPException(
@@ -31,19 +31,21 @@ async def register(user_data: UserCreate, background_tasks: BackgroundTasks):
             detail="Email already registered"
         )
 
+    # Create new user
     user_doc = {
         "email": user_data.email.lower(),
         "password_hash": get_password_hash(user_data.password),
-        "role": "user",
+        "role": user_data.role if user_data.role in ["user", "admin"] else "user",
         "created_at": datetime.utcnow(),
     }
 
     result = db[USERS_COLLECTION].insert_one(user_doc)
     user_id = str(result.inserted_id)
 
-    # Send welcome email
+    # Send welcome email in background
     background_tasks.add_task(send_welcome_email, user_doc["email"], None)
 
+    # Create JWT token
     access_token = create_access_token(data={"sub": user_id})
 
     return Token(
@@ -57,12 +59,12 @@ async def register(user_data: UserCreate, background_tasks: BackgroundTasks):
     )
 
 
-# =========================
+# ----------------------------
 # LOGIN
-# =========================
+# ----------------------------
 @router.post("/login", response_model=Token)
 async def login(credentials: UserLogin):
-
+    """Login and return JWT token"""
     db = get_db()
 
     if not credentials.email or '@' not in credentials.email:
@@ -98,30 +100,30 @@ async def login(credentials: UserLogin):
     )
 
 
-# =========================
+# ----------------------------
 # GET CURRENT USER
-# =========================
+# ----------------------------
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: dict = Depends(get_current_user)):
+    """Return currently authenticated user"""
     return UserResponse(**current_user)
 
 
-# =========================
+# ----------------------------
 # LOGOUT
-# =========================
+# ----------------------------
 @router.post("/logout", response_model=Message)
 async def logout(current_user: dict = Depends(get_current_user)):
-    """Logout user (no prediction email now)"""
-    
+    """Logout user (JWT based systems usually handle logout client-side)"""
     return Message(message="Logged out successfully")
 
 
-# =========================
-# INIT ADMIN
-# =========================
+# ----------------------------
+# INIT ADMIN (ONE TIME)
+# ----------------------------
 @router.get("/init-admin", response_model=Message)
 async def init_admin():
-
+    """Create admin user if none exists"""
     db = get_db()
 
     admin_count = db[USERS_COLLECTION].count_documents({"role": "admin"})
@@ -142,15 +144,16 @@ async def init_admin():
     return Message(message=f"Admin user created: {admin_email} / admin123")
 
 
-# =========================
-# GOOGLE LOGIN
-# =========================
+# ----------------------------
+# GOOGLE AUTH
+# ----------------------------
 @router.post("/google", response_model=Token)
 async def google_auth(auth_data: GoogleAuthRequest):
-
+    """Authenticate user with Google OAuth"""
     db = get_db()
 
     try:
+        # Verify Google token
         idinfo = id_token.verify_oauth2_token(
             auth_data.token,
             requests.Request(),
@@ -188,14 +191,14 @@ async def google_auth(auth_data: GoogleAuthRequest):
                 "profile_picture": picture,
                 "role": "user",
                 "created_at": datetime.utcnow(),
-                "name": name
+                "name": name,
             }
 
             result = db[USERS_COLLECTION].insert_one(user_doc)
-
             user_id = str(result.inserted_id)
+            user = {**user_doc, "_id": result.inserted_id}
 
-        # Send welcome email for new user
+        # Send welcome email for new users
         if is_new_user:
             asyncio.create_task(send_welcome_email(email.lower(), name))
 
@@ -206,14 +209,20 @@ async def google_auth(auth_data: GoogleAuthRequest):
             token_type="bearer",
             user=UserResponse(
                 id=user_id,
-                email=email.lower(),
-                role="user",
-                profile_picture=picture
+                email=user.get("email", email.lower()),
+                role=user.get("role", "user"),
+                profile_picture=user.get("profile_picture") or picture
             )
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid Google token: {str(e)}"
         )
 
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Google authentication failed: {str(e)}"
         )

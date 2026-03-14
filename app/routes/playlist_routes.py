@@ -5,23 +5,20 @@ from typing import List
 
 from app.db import get_db, PLAYLISTS_COLLECTION, SONGS_COLLECTION
 from app.models import (
-    PlaylistCreate,
-    PlaylistUpdate,
-    PlaylistResponse,
-    PlaylistAddSong,
-    Message
+    PlaylistCreate, PlaylistUpdate, PlaylistResponse,
+    PlaylistAddSong, Message
 )
 from app.auth import get_current_user
 
 router = APIRouter(prefix="/playlists", tags=["playlists"])
 
 
-# =========================
-# GET USER PLAYLISTS
-# =========================
+# -------------------------
+# LIST PLAYLISTS
+# -------------------------
 @router.get("", response_model=List[PlaylistResponse])
 async def list_playlists(current_user: dict = Depends(get_current_user)):
-
+    """Get all playlists for current user"""
     db = get_db()
     user_id = ObjectId(current_user["id"])
 
@@ -44,15 +41,14 @@ async def list_playlists(current_user: dict = Depends(get_current_user)):
     ]
 
 
-# =========================
+# -------------------------
 # CREATE PLAYLIST
-# =========================
+# -------------------------
 @router.post("", response_model=PlaylistResponse, status_code=status.HTTP_201_CREATED)
 async def create_playlist(
     playlist_data: PlaylistCreate,
     current_user: dict = Depends(get_current_user)
 ):
-
     db = get_db()
     user_id = ObjectId(current_user["id"])
 
@@ -76,24 +72,28 @@ async def create_playlist(
     )
 
 
-# =========================
-# GET SINGLE PLAYLIST
-# =========================
+# -------------------------
+# GET PLAYLIST
+# -------------------------
 @router.get("/{playlist_id}", response_model=PlaylistResponse)
 async def get_playlist(
     playlist_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-
     db = get_db()
+    user_id = ObjectId(current_user["id"])
+    playlist_oid = ObjectId(playlist_id)
 
     playlist = db[PLAYLISTS_COLLECTION].find_one({
-        "_id": ObjectId(playlist_id),
-        "user_id": ObjectId(current_user["id"])
+        "_id": playlist_oid,
+        "user_id": user_id
     })
 
     if not playlist:
-        raise HTTPException(status_code=404, detail="Playlist not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Playlist not found"
+        )
 
     return PlaylistResponse(
         id=str(playlist["_id"]),
@@ -101,23 +101,22 @@ async def get_playlist(
         name=playlist["name"],
         description=playlist.get("description"),
         song_ids=[str(sid) for sid in playlist.get("song_ids", [])],
-        created_at=playlist.get("created_at", datetime.utcnow()).isoformat()
+        created_at=playlist.get("created_at").isoformat()
     )
 
 
-# =========================
+# -------------------------
 # UPDATE PLAYLIST
-# =========================
+# -------------------------
 @router.put("/{playlist_id}", response_model=PlaylistResponse)
 async def update_playlist(
     playlist_id: str,
     playlist_data: PlaylistUpdate,
     current_user: dict = Depends(get_current_user)
 ):
-
     db = get_db()
-    playlist_oid = ObjectId(playlist_id)
     user_id = ObjectId(current_user["id"])
+    playlist_oid = ObjectId(playlist_id)
 
     playlist = db[PLAYLISTS_COLLECTION].find_one({
         "_id": playlist_oid,
@@ -151,24 +150,25 @@ async def update_playlist(
         name=playlist["name"],
         description=playlist.get("description"),
         song_ids=[str(sid) for sid in playlist.get("song_ids", [])],
-        created_at=playlist.get("created_at", datetime.utcnow()).isoformat()
+        created_at=playlist.get("created_at").isoformat()
     )
 
 
-# =========================
+# -------------------------
 # DELETE PLAYLIST
-# =========================
+# -------------------------
 @router.delete("/{playlist_id}", response_model=Message)
 async def delete_playlist(
     playlist_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-
     db = get_db()
+    user_id = ObjectId(current_user["id"])
+    playlist_oid = ObjectId(playlist_id)
 
     result = db[PLAYLISTS_COLLECTION].delete_one({
-        "_id": ObjectId(playlist_id),
-        "user_id": ObjectId(current_user["id"])
+        "_id": playlist_oid,
+        "user_id": user_id
     })
 
     if result.deleted_count == 0:
@@ -177,64 +177,75 @@ async def delete_playlist(
     return Message(message="Playlist deleted successfully")
 
 
-# =========================
+# -------------------------
 # ADD SONG TO PLAYLIST
-# =========================
+# -------------------------
 @router.post("/{playlist_id}/songs", response_model=Message)
 async def add_song_to_playlist(
     playlist_id: str,
     song_data: PlaylistAddSong,
     current_user: dict = Depends(get_current_user)
 ):
-
     db = get_db()
+    user_id = ObjectId(current_user["id"])
+    playlist_oid = ObjectId(playlist_id)
+    song_oid = ObjectId(song_data.song_id)
 
     playlist = db[PLAYLISTS_COLLECTION].find_one({
-        "_id": ObjectId(playlist_id),
-        "user_id": ObjectId(current_user["id"])
+        "_id": playlist_oid,
+        "user_id": user_id
     })
 
     if not playlist:
         raise HTTPException(status_code=404, detail="Playlist not found")
 
-    song = db[SONGS_COLLECTION].find_one({"_id": ObjectId(song_data.song_id)})
-
+    song = db[SONGS_COLLECTION].find_one({"_id": song_oid})
     if not song:
         raise HTTPException(status_code=404, detail="Song not found")
 
-    if ObjectId(song_data.song_id) not in playlist.get("song_ids", []):
+    song_ids = playlist.get("song_ids", [])
+
+    if song_oid not in song_ids:
+        song_ids.append(song_oid)
+
         db[PLAYLISTS_COLLECTION].update_one(
-            {"_id": ObjectId(playlist_id)},
-            {
-                "$push": {"song_ids": ObjectId(song_data.song_id)},
-                "$set": {"updated_at": datetime.utcnow()}
-            }
+            {"_id": playlist_oid},
+            {"$set": {"song_ids": song_ids, "updated_at": datetime.utcnow()}}
         )
 
     return Message(message="Song added to playlist")
 
 
-# =========================
+# -------------------------
 # REMOVE SONG FROM PLAYLIST
-# =========================
+# -------------------------
 @router.delete("/{playlist_id}/songs/{song_id}", response_model=Message)
 async def remove_song_from_playlist(
     playlist_id: str,
     song_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-
     db = get_db()
+    user_id = ObjectId(current_user["id"])
+    playlist_oid = ObjectId(playlist_id)
+    song_oid = ObjectId(song_id)
 
-    db[PLAYLISTS_COLLECTION].update_one(
-        {
-            "_id": ObjectId(playlist_id),
-            "user_id": ObjectId(current_user["id"])
-        },
-        {
-            "$pull": {"song_ids": ObjectId(song_id)},
-            "$set": {"updated_at": datetime.utcnow()}
-        }
-    )
+    playlist = db[PLAYLISTS_COLLECTION].find_one({
+        "_id": playlist_oid,
+        "user_id": user_id
+    })
+
+    if not playlist:
+        raise HTTPException(status_code=404, detail="Playlist not found")
+
+    song_ids = playlist.get("song_ids", [])
+
+    if song_oid in song_ids:
+        song_ids.remove(song_oid)
+
+        db[PLAYLISTS_COLLECTION].update_one(
+            {"_id": playlist_oid},
+            {"$set": {"song_ids": song_ids, "updated_at": datetime.utcnow()}}
+        )
 
     return Message(message="Song removed from playlist")
