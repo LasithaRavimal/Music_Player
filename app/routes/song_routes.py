@@ -63,69 +63,14 @@ async def upload_song(
     artist: str = Form(...),
     category: str = Form(...),
     description: Optional[str] = Form(None),
-    file: UploadFile = File(...),
-    thumbnail: Optional[UploadFile] = File(None),
+    audio_url: str = Form(...),          # 🔥 Supabase audio URL
+    thumbnail_url: Optional[str] = Form(None),  # 🔥 Supabase image URL
     admin_user: dict = Depends(require_admin)
 ):
-    """Upload a new song with thumbnail (admin only)"""
+    """Save song URLs uploaded to Supabase (admin only)"""
+
     db = get_db()
-    
-    # Validate audio file type
-    if not file.filename.endswith(('.mp3', '.m4a', '.wav')):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only MP3, M4A, and WAV files are supported"
-        )
-    
-    # Save audio file
-    file_ext = Path(file.filename).suffix
-    file_id = ObjectId()
-    file_name = f"{file_id}{file_ext}"
-    file_path = settings.SONGS_DIR / file_name
-    
-    try:
-        with open(file_path, "wb") as f:
-            content = await file.read()
-            f.write(content)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save file: {str(e)}"
-        )
-    
-    # Handle thumbnail upload
-    thumbnail_url = None
-    if thumbnail:
-        # Validate image type
-        if not thumbnail.filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Thumbnail must be an image file (JPG, PNG, GIF, WEBP)"
-            )
-        
-        thumb_ext = Path(thumbnail.filename).suffix
-        thumb_name = f"{file_id}{thumb_ext}"
-        thumb_path = settings.THUMBNAILS_DIR / thumb_name
-        
-        try:
-            # Resize image using Pillow
-            from PIL import Image
-            import io
-            
-            thumb_content = await thumbnail.read()
-            img = Image.open(io.BytesIO(thumb_content))
-            img.thumbnail((500, 500), Image.Resampling.LANCZOS)
-            img.save(thumb_path, format=img.format or 'JPEG', quality=85)
-            
-            thumbnail_url = f"/media/thumbnails/{thumb_name}"
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to process thumbnail: {str(e)}"
-            )
-    
-    # Create song document
-    audio_url = f"/media/songs/{file_name}"
+
     song_doc = {
         "title": title,
         "artist": artist,
@@ -133,23 +78,21 @@ async def upload_song(
         "description": description,
         "audio_url": audio_url,
         "thumbnail_url": thumbnail_url,
-        "file_path": str(file_path),
-        "is_active": True,  # Default to active
-        "created_at": datetime.utcnow(),
+        "is_active": True,
+        "created_at": datetime.utcnow()
     }
-    
+
     result = db[SONGS_COLLECTION].insert_one(song_doc)
-    song_id = str(result.inserted_id)
-    
+
     return SongResponse(
-        id=song_id,
+        id=str(result.inserted_id),
         title=title,
         artist=artist,
         category=category,
         audio_url=audio_url,
         thumbnail_url=thumbnail_url,
         description=description,
-        is_active=song_doc.get("is_active", True),
+        is_active=True,
         created_at=song_doc["created_at"].isoformat()
     )
 
