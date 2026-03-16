@@ -1,11 +1,11 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
-# -------------------------
+# --------------------------------------------------
 # USER MODELS
-# -------------------------
+# --------------------------------------------------
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -38,14 +38,17 @@ class Token(BaseModel):
     user: UserResponse
 
 
-# -------------------------
+# --------------------------------------------------
 # SONG MODELS
-# -------------------------
+# --------------------------------------------------
 
 class SongCreate(BaseModel):
     title: str
     artist: str
     category: str
+    description: Optional[str] = None
+    audio_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
 
 
 class SongUpdate(BaseModel):
@@ -65,15 +68,15 @@ class SongResponse(BaseModel):
     thumbnail_url: Optional[str] = None
     description: Optional[str] = None
     is_active: bool = True
-    created_at: str
+    created_at: datetime
 
     class Config:
         from_attributes = True
 
 
-# -------------------------
+# --------------------------------------------------
 # SESSION MODELS
-# -------------------------
+# --------------------------------------------------
 
 class SessionEvent(BaseModel):
     type: str
@@ -127,9 +130,9 @@ class SessionResponse(BaseModel):
         from_attributes = True
 
 
-# -------------------------
+# --------------------------------------------------
 # PLAYLIST MODELS
-# -------------------------
+# --------------------------------------------------
 
 class PlaylistCreate(BaseModel):
     name: str
@@ -146,8 +149,8 @@ class PlaylistResponse(BaseModel):
     user_id: str
     name: str
     description: Optional[str] = None
-    song_ids: List[str] = []
-    created_at: str
+    song_ids: List[str] = Field(default_factory=list)
+    created_at: datetime
 
     class Config:
         from_attributes = True
@@ -157,17 +160,17 @@ class PlaylistAddSong(BaseModel):
     song_id: str
 
 
-# -------------------------
+# --------------------------------------------------
 # FAVORITE MODELS
-# -------------------------
+# --------------------------------------------------
 
 class FavoriteResponse(BaseModel):
     song_ids: List[str]
 
 
-# -------------------------
+# --------------------------------------------------
 # QUESTIONNAIRE MODELS
-# -------------------------
+# --------------------------------------------------
 
 class QuestionnaireSubmit(BaseModel):
     phq9_answers: List[int]
@@ -179,9 +182,9 @@ class QuestionnaireResponse(BaseModel):
     dass21_stress_score: int
 
 
-# -------------------------
+# --------------------------------------------------
 # EMAIL CONFIG MODELS
-# -------------------------
+# --------------------------------------------------
 
 class EmailConfigCreate(BaseModel):
     smtp_host: str = "smtp.gmail.com"
@@ -213,9 +216,9 @@ class EmailConfigResponse(BaseModel):
         from_attributes = True
 
 
-# -------------------------
+# --------------------------------------------------
 # COMMON MESSAGE MODEL
-# -------------------------
+# --------------------------------------------------
 
 class Message(BaseModel):
     message: str
