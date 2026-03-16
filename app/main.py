@@ -21,6 +21,7 @@ from app.routes import (
     song_routes,
     session_routes,
     playlist_routes,
+    questionnaire_routes,
 )
 
 # --------------------------------------------------
@@ -74,6 +75,7 @@ app.include_router(song_routes.router, prefix=API_V1_PREFIX)
 app.include_router(session_routes.router, prefix=API_V1_PREFIX)
 app.include_router(playlist_routes.router, prefix=API_V1_PREFIX)
 app.include_router(music_admin_routes.router, prefix=API_V1_PREFIX)
+app.include_router(questionnaire_routes.router, prefix=API_V1_PREFIX)
 
 # --------------------------------------------------
 # Startup Event
