@@ -89,7 +89,7 @@ async def end_session(
     session_data: SessionEnd,
     current_user: dict = Depends(get_current_user)
 ):
-    """End listening session and save behavior with logic-based prediction"""
+    """End listening session and save behavior data (Without fake predictions)"""
 
     db = get_db()
     session_id = ObjectId(session_data.session_id)
@@ -105,34 +105,7 @@ async def end_session(
     events = [event.dict() for event in session_data.events]
     aggregated_data = session_data.aggregated_data.dict()
 
-    # --- RESEARCH-BASED PREDICTION LOGIC ---
-    # We use the collected behavior data to 'predict' the state
-    mode = aggregated_data.get("song_category_mode", "Neutral").lower()
-    time_of_day = aggregated_data.get("listening_time_of_day", "Unknown").lower()
-    skips = aggregated_data.get("skip_rate_bucket", "Low")
-    
-    # Default Results
-    d_level = "Low"
-    s_level = "Low"
-
-    # Logic: High Depression (Sad songs + Night listening)
-    if mode == "sad" and ("night" in time_of_day or "midnight" in time_of_day):
-        d_level = "High"
-        s_level = "Moderate"
-    # Logic: High Stress (Frequent skips + Evening/Work hours)
-    elif skips == "Frequent" or skips == "Very High":
-        s_level = "High"
-        d_level = "Moderate" if mode == "sad" else "Low"
-    # Logic: Moderate Depression (Sad songs but normal hours)
-    elif mode == "sad":
-        d_level = "Moderate"
-    
-    prediction_results = {
-        "depression_level": d_level,
-        "stress_level": s_level
-    }
-
-    # Update session document with the Prediction
+    # Update session document (Notice we REMOVED the "prediction" field here!)
     db[SESSIONS_COLLECTION].update_one(
         {"_id": session_id},
         {
@@ -141,18 +114,16 @@ async def end_session(
                 "is_active": False,
                 "events": events,
                 "aggregated_data": aggregated_data,
-                "prediction": prediction_results,  
                 "updated_at": ended_at
             }
         }
     )
 
-    logger.info(f"Ended session {session_data.session_id} with prediction: {prediction_results}")
+    logger.info(f"Ended session {session_data.session_id}")
 
     return SessionEndResponse(
         session_id=session_data.session_id
     )
-
 
 # ----------------------------
 # ACTIVE SESSION

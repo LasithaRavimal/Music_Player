@@ -81,3 +81,23 @@ async def get_latest_questionnaire(current_user: dict = Depends(get_current_user
     latest["user_id"] = str(latest["user_id"])
 
     return latest
+
+from datetime import datetime
+from bson import ObjectId
+
+@router.get("/check-today")
+async def check_today_assessment(current_user: dict = Depends(get_current_user)):
+    """Check if the logged-in user has completed the assessment today"""
+    db = get_db()
+    
+    # අද දවස පටන් ගත් වෙලාව (Midnight)
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # මේ User අද දවසේ Data DB එකට දාලා තියෙනවද කියලා බලනවා
+    # (ඔයාගේ collection එකේ නම 'questionnaire_results' නෙවෙයි නම් ඒක මාරු කරන්න)
+    count = db["questionnaire_results"].count_documents({
+        "user_id": ObjectId(current_user["id"]),
+        "created_at": {"$gte": today_start}
+    })
+    
+    return {"has_done_today": count > 0}
