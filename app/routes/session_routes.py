@@ -90,7 +90,7 @@ async def start_session(
 @router.post("/end", response_model=SessionEndResponse)
 async def end_session(
     session_data: SessionEnd,
-    background_tasks: BackgroundTasks, # Allows email to send silently
+    background_tasks: BackgroundTasks, 
     current_user: dict = Depends(get_current_user)
 ):
     """End listening session, save behavior data, and send email if risk is high"""
@@ -101,9 +101,6 @@ async def end_session(
 
     if not session_doc:
         raise HTTPException(status_code=404, detail="Session not found")
-
-    if str(session_doc["user_id"]) != current_user["id"]:
-        raise HTTPException(status_code=403, detail="Access denied")
 
     ended_at = datetime.utcnow()
     events = [event.dict() for event in session_data.events]
@@ -123,10 +120,9 @@ async def end_session(
         }
     )
 
-    logger.info(f"Ended session {session_data.session_id}")
-
-    # 2. Check questionnaire scores and trigger email alert in the background
+    # 2. Check questionnaire scores and trigger email
     try:
+        print("\n=== EMAIL TRIGGER CHECK ===")
         latest_q = db["questionnaire_results"].find_one(
             {"user_id": ObjectId(current_user["id"])},
             sort=[("created_at", -1)]
@@ -134,7 +130,9 @@ async def end_session(
 
         if latest_q:
             phq9_score = latest_q.get("phq9_score", 0)
-            stress_score = latest_q.get("dass21_stress_score", latest_q.get("dass21_score", 0))
+            stress_score = latest_q.get("dass21_stress_score", 0)
+            
+            print(f"Found Questionnaire -> Depression Score: {phq9_score}, Stress Score: {stress_score}")
 
             if phq9_score >= 15 or stress_score >= 13:
                 # Fetch user email
@@ -142,20 +140,28 @@ async def end_session(
                 user_email = user_doc.get("email") if user_doc else current_user.get("email")
 
                 if user_email:
-                    logger.info(f"High scores detected. Queueing email for {user_email}.")
+                    print(f"🚨 HIGH RISK DETECTED! Queueing email to: {user_email}")
                     background_tasks.add_task(
                         send_questionnaire_alert,
                         user_email,
                         stress_score,
                         phq9_score
                     )
+                else:
+                    print("❌ Error: Could not find user's email address in database.")
+            else:
+                print("✅ Scores are normal/low. No email will be sent.")
+        else:
+            print("❌ Error: No questionnaire found for this user!")
+            
+        print("===========================\n")
+
     except Exception as e:
-        logger.error(f"Failed to process email alert logic: {e}")
+        print(f"❌ CRITICAL EMAIL ERROR: {e}")
 
     return SessionEndResponse(
         session_id=session_data.session_id
     )
-
 
 # ----------------------------
 # ACTIVE SESSION
