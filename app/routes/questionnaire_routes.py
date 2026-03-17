@@ -1,27 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from bson import ObjectId
 from datetime import datetime
 
-from app.db import get_db, QUESTIONNAIRE_COLLECTION, USERS_COLLECTION
+from app.db import get_db, QUESTIONNAIRE_COLLECTION
 from app.models import QuestionnaireSubmit, QuestionnaireResponse
 from app.auth import get_current_user
-from app.utils.email_service import send_questionnaire_alert
-
 
 router = APIRouter(prefix="/questionnaire", tags=["questionnaire"])
-
 
 # ----------------------------------------
 # SUBMIT QUESTIONNAIRE
 # ----------------------------------------
-
 @router.post("/submit", response_model=QuestionnaireResponse)
 async def submit_questionnaire(
     data: QuestionnaireSubmit,
-    background_tasks: BackgroundTasks, # 👈 ADDED THIS to handle background emails!
     current_user: dict = Depends(get_current_user)
 ):
-
     db = get_db()
     user_id = ObjectId(current_user["id"])
 
@@ -43,19 +37,6 @@ async def submit_questionnaire(
 
     db[QUESTIONNAIRE_COLLECTION].insert_one(doc)
 
-    # --------------------------------
-    # EMAIL ALERT IF HIGH SCORE
-    # --------------------------------
-
-    if phq9_score >= 15 or dass21_stress_score >= 13:
-        # 👈 CHANGED THIS: Now sends the email in the background instantly!
-        background_tasks.add_task(
-            send_questionnaire_alert,
-            current_user["email"],
-            dass21_stress_score,
-            phq9_score
-        )
-
     return QuestionnaireResponse(
         phq9_score=phq9_score,
         dass21_stress_score=dass21_stress_score
@@ -65,7 +46,6 @@ async def submit_questionnaire(
 # ----------------------------------------
 # GET LATEST QUESTIONNAIRE
 # ----------------------------------------
-
 @router.get("/latest")
 async def get_latest_questionnaire(current_user: dict = Depends(get_current_user)):
     db = get_db()
