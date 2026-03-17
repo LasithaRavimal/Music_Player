@@ -267,3 +267,34 @@ async def delete_email_config(
     refresh_email_config()
 
     return Message(message="Email configuration deleted")
+
+
+# -------------------------
+# ADMIN: RESEARCH DATA
+# -------------------------
+@router.get("/research-data")
+async def get_all_research_data(admin_user: dict = Depends(require_admin)):
+    """Fetch all completed sessions with user emails and predictions"""
+    db = get_db()
+    
+    # 1. Get all completed sessions sorted by newest first
+    sessions = list(db[SESSIONS_COLLECTION].find({"is_active": False}).sort("ended_at", -1))
+    
+    # 2. Get all users to map their IDs to their Emails
+    users = list(db[USERS_COLLECTION].find({}, {"email": 1}))
+    user_map = {str(u["_id"]): u.get("email", "Unknown User") for u in users}
+    
+    # 3. Combine the data
+    research_data = []
+    for s in sessions:
+        # Only include sessions that successfully generated a prediction
+        if "prediction" in s and "aggregated_data" in s:
+            research_data.append({
+                "session_id": str(s["_id"]),
+                "email": user_map.get(str(s["user_id"]), "Unknown User"),
+                "date": s.get("ended_at"),
+                "behavior": s.get("aggregated_data", {}),
+                "prediction": s.get("prediction", {})
+            })
+            
+    return research_data
