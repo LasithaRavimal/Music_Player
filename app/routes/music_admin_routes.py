@@ -274,27 +274,55 @@ async def delete_email_config(
 # -------------------------
 @router.get("/research-data")
 async def get_all_research_data(admin_user: dict = Depends(require_admin)):
-    """Fetch all completed sessions with user emails and predictions"""
+    """Fetch all completed sessions mapped to their exact questionnaire result"""
     db = get_db()
     
-    # 1. Get all completed sessions sorted by newest first
+    # 1. Get all completed sessions
     sessions = list(db[SESSIONS_COLLECTION].find({"is_active": False}).sort("ended_at", -1))
     
-    # 2. Get all users to map their IDs to their Emails
+    # 2. Get users map
     users = list(db[USERS_COLLECTION].find({}, {"email": 1}))
     user_map = {str(u["_id"]): u.get("email", "Unknown User") for u in users}
     
-    # 3. Combine the data
+    # 3. Get ALL Questionnaire Results (Sorted by newest first)
+    questionnaires = list(db["questionnaire_results"].find({}).sort("created_at", -1))
+    
+    # 4. Combine everything logically
     research_data = []
     for s in sessions:
-        # Only include sessions that successfully generated a prediction
-        if "prediction" in s and "aggregated_data" in s:
+        uid = str(s.get("user_id"))
+        session_end_time = s.get("ended_at")
+        
+         
+        matched_q = None
+        for q in questionnaires:
+            if str(q.get("user_id")) == uid:
+                q_time = q.get("created_at")
+                 
+                if q_time and session_end_time and q_time <= session_end_time:
+                    matched_q = q
+                    break
+        
+        
+        if not matched_q:
+            for q in questionnaires:
+                if str(q.get("user_id")) == uid:
+                    matched_q = q
+                    break
+
+        
+        screening_data = {
+            "depression_level": matched_q.get("depression_level", "N/A") if matched_q else "N/A",
+            "stress_level": matched_q.get("stress_level", "N/A") if matched_q else "N/A"
+        }
+
+        if "aggregated_data" in s:
             research_data.append({
                 "session_id": str(s["_id"]),
-                "email": user_map.get(str(s["user_id"]), "Unknown User"),
-                "date": s.get("ended_at"),
+                "email": user_map.get(uid, "Unknown User"),
+                "date": session_end_time,
                 "behavior": s.get("aggregated_data", {}),
-                "prediction": s.get("prediction", {})
+                "screening": screening_data 
             })
             
     return research_data
