@@ -1,9 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from bson import ObjectId
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from app.db import get_db, SESSIONS_COLLECTION, SONGS_COLLECTION
+# IMPORT USERS_COLLECTION and the email service
+from app.db import get_db, SESSIONS_COLLECTION, SONGS_COLLECTION, USERS_COLLECTION
+from app.utils.email_service import send_questionnaire_alert
+
 from app.models import (
     SessionStart, SessionStartResponse,
     SessionEnd, SessionEndResponse,
@@ -82,14 +85,15 @@ async def start_session(
 
 
 # ----------------------------
-# END SESSION
+# END SESSION (WITH EMAIL TRIGGER)
 # ----------------------------
 @router.post("/end", response_model=SessionEndResponse)
 async def end_session(
     session_data: SessionEnd,
+    background_tasks: BackgroundTasks, # ADDED: To send emails without slowing down the app
     current_user: dict = Depends(get_current_user)
 ):
-    """End listening session and save behavior data (Without fake predictions)"""
+    """End listening session and save behavior data"""
 
     db = get_db()
     session_id = ObjectId(session_data.session_id)
@@ -105,7 +109,7 @@ async def end_session(
     events = [event.dict() for event in session_data.events]
     aggregated_data = session_data.aggregated_data.dict()
 
-    # Update session document (Notice we REMOVED the "prediction" field here!)
+    # Update session document
     db[SESSIONS_COLLECTION].update_one(
         {"_id": session_id},
         {
@@ -121,9 +125,53 @@ async def end_session(
 
     logger.info(f"Ended session {session_data.session_id}")
 
+    # ==========================================
+    # CHECK QUESTIONNAIRE & SEND EMAIL ALERT
+    # ==========================================
+    try:
+        # 1. Get the user's email address
+        user_doc = db[USERS_COLLECTION].find_one({"_id": ObjectId(current_user["id"])})
+        user_email = user_doc.get("email") if user_doc else current_user.get("email")
+
+        if user_email:
+            # 2. Get their most recent questionnaire result
+            latest_q = db["questionnaire_results"].find_one(
+                {"user_id": ObjectId(current_user["id"])},
+                sort=[("created_at", -1)]
+            )
+
+            if latest_q:
+                stress_level = latest_q.get("stress_level", "").lower()
+                dep_level = latest_q.get("depression_level", "").lower()
+
+                # Check if either level is considered "high" or "severe"
+                is_high = any(
+                    lvl in ["high", "severe", "extremely severe"]
+                    for lvl in [stress_level, dep_level]
+                )
+
+                if is_high:
+                    logger.info(f"High risk detected for {user_email}. Triggering email alert.")
+                    
+                    # Extract numeric scores safely
+                    stress_score = latest_q.get("dass21_score", latest_q.get("stress_score", 0))
+                    dep_score = latest_q.get("phq9_score", latest_q.get("depression_score", 0))
+
+                    # 3. Schedule the email to send in the background
+                    background_tasks.add_task(
+                        send_questionnaire_alert,
+                        user_email=user_email,
+                        stress_score=stress_score,
+                        depression_score=dep_score
+                    )
+    except Exception as e:
+        logger.error(f"Failed to process email alert logic: {e}")
+    # ==========================================
+
     return SessionEndResponse(
         session_id=session_data.session_id
     )
+
 
 # ----------------------------
 # ACTIVE SESSION
