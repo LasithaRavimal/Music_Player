@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from bson import ObjectId
 from datetime import datetime
 
@@ -18,6 +18,7 @@ router = APIRouter(prefix="/questionnaire", tags=["questionnaire"])
 @router.post("/submit", response_model=QuestionnaireResponse)
 async def submit_questionnaire(
     data: QuestionnaireSubmit,
+    background_tasks: BackgroundTasks, # 👈 ADDED THIS to handle background emails!
     current_user: dict = Depends(get_current_user)
 ):
 
@@ -47,7 +48,9 @@ async def submit_questionnaire(
     # --------------------------------
 
     if phq9_score >= 15 or dass21_stress_score >= 13:
-        await send_questionnaire_alert(
+        # 👈 CHANGED THIS: Now sends the email in the background instantly!
+        background_tasks.add_task(
+            send_questionnaire_alert,
             current_user["email"],
             dass21_stress_score,
             phq9_score
@@ -84,15 +87,12 @@ async def get_latest_questionnaire(current_user: dict = Depends(get_current_user
     return latest
 
 
-
 @router.get("/check-today")
 async def check_today_assessment(current_user: dict = Depends(get_current_user)):
     """Check if the logged-in user has completed the assessment today"""
     db = get_db()
     
-   
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    
     
     count = db["questionnaire_results"].count_documents({
         "user_id": ObjectId(current_user["id"]),
